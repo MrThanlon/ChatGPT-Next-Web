@@ -45,6 +45,7 @@ export async function requestOpenai(req: NextRequest) {
   );
 
   const fetchUrl = `${baseUrl}/${openaiPath}`;
+  const reqJson = await req.json();
   const fetchOptions: RequestInit = {
     headers: {
       "Content-Type": "application/json",
@@ -55,7 +56,7 @@ export async function requestOpenai(req: NextRequest) {
       }),
     },
     method: req.method,
-    body: req.body,
+    body: reqJson,
     // to fix #2485: https://stackoverflow.com/questions/55920957/cloudflare-worker-typeerror-one-time-use-body
     redirect: "manual",
     // @ts-ignore
@@ -66,10 +67,10 @@ export async function requestOpenai(req: NextRequest) {
   // #1815 try to refuse gpt4 request
   if (DISABLE_GPT4 && req.body) {
     try {
-      const clonedBody = await req.text();
+      const clonedBody = reqJson;
       fetchOptions.body = clonedBody;
 
-      const jsonBody = JSON.parse(clonedBody);
+      const jsonBody = clonedBody;
 
       if ((jsonBody?.model ?? "").includes("gpt-4")) {
         return NextResponse.json(
@@ -98,7 +99,7 @@ export async function requestOpenai(req: NextRequest) {
 
     // log
     if (process.env.AXIOM_TOKEN && process.env.AXIOM_ORG_ID) {
-      axiom.ingest(process.env.AXIOM_DATASET || "gpt", [await req.text()]);
+      axiom.ingest(process.env.AXIOM_DATASET || "gpt", [reqJson]);
       await axiom.flush();
     }
 
