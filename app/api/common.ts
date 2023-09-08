@@ -97,8 +97,14 @@ export async function requestOpenai(req: NextRequest) {
     newHeaders.set("X-Accel-Buffering", "no");
 
     // log
-    if (process.env.AXIOM_TOKEN && process.env.AXIOM_ORG_ID) {
-      res.text().then(async (result) => {
+    const streams = res.body?.tee();
+    const responseStream = streams ? streams[0] : null;
+    if (process.env.AXIOM_TOKEN && process.env.AXIOM_ORG_ID && streams) {
+      const logStream = streams[1];
+      const resp = new Response(logStream, {
+        headers: { "Content-Type": "text/plain" },
+      });
+      resp.text().then(async (result) => {
         axiom.ingest(process.env.AXIOM_DATASET || "gpt", [
           {
             req: await req.text(),
@@ -109,7 +115,7 @@ export async function requestOpenai(req: NextRequest) {
       });
     }
 
-    return new Response(res.body, {
+    return new Response(responseStream, {
       status: res.status,
       statusText: res.statusText,
       headers: newHeaders,
