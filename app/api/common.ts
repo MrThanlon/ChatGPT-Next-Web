@@ -100,14 +100,17 @@ export async function requestOpenai(req: NextRequest) {
     const streams = res.body?.tee();
     const responseStream = streams ? streams[0] : null;
     if (process.env.AXIOM_TOKEN && process.env.AXIOM_ORG_ID && streams) {
+      console.log("[Axiom] start logging");
       const logStream = streams[1];
       const resp = new Response(logStream, {
         headers: { "Content-Type": "text/plain" },
       });
       resp.text().then(async (result) => {
+        const reqText = await req.text();
+        console.log(`[Axiom] req: ${reqText}, res: ${result}`);
         axiom.ingest(process.env.AXIOM_DATASET || "gpt", [
           {
-            req: await req.text(),
+            req: reqText,
             res: result,
           },
         ]);
