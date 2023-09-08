@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Axiom } from "@axiomhq/js";
 
 export const OPENAI_URL = "api.openai.com";
 const DEFAULT_PROTOCOL = "https";
 const PROTOCOL = process.env.PROTOCOL || DEFAULT_PROTOCOL;
 const BASE_URL = process.env.BASE_URL || OPENAI_URL;
 const DISABLE_GPT4 = !!process.env.DISABLE_GPT4;
+
+const axiom = new Axiom({
+  token: process.env.AXIOM_TOKEN,
+  orgId: process.env.AXIOM_ORG_ID,
+});
 
 export async function requestOpenai(req: NextRequest) {
   const controller = new AbortController();
@@ -20,7 +26,7 @@ export async function requestOpenai(req: NextRequest) {
     baseUrl = `${PROTOCOL}://${baseUrl}`;
   }
 
-  if (baseUrl.endsWith('/')) {
+  if (baseUrl.endsWith("/")) {
     baseUrl = baseUrl.slice(0, -1);
   }
 
@@ -31,9 +37,12 @@ export async function requestOpenai(req: NextRequest) {
     console.log("[Org ID]", process.env.OPENAI_ORG_ID);
   }
 
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, 10 * 60 * 1000);
+  const timeoutId = setTimeout(
+    () => {
+      controller.abort();
+    },
+    10 * 60 * 1000,
+  );
 
   const fetchUrl = `${baseUrl}/${openaiPath}`;
   const fetchOptions: RequestInit = {
@@ -86,6 +95,15 @@ export async function requestOpenai(req: NextRequest) {
     newHeaders.delete("www-authenticate");
     // to disable nginx buffering
     newHeaders.set("X-Accel-Buffering", "no");
+
+    // log
+    if (process.env.AXIOM_TOKEN && process.env.AXIOM_ORG_ID) {
+      axiom.ingest(process.env.AXIOM_DATASET || "gpt", {
+        req: req.body,
+        res: res.body,
+      });
+      await axiom.flush();
+    }
 
     return new Response(res.body, {
       status: res.status,
