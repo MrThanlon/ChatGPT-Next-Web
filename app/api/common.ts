@@ -98,10 +98,13 @@ export async function requestOpenai(req: NextRequest) {
 
     // log
     if (process.env.AXIOM_TOKEN && process.env.AXIOM_ORG_ID) {
-      axiom.ingest(process.env.AXIOM_DATASET || "gpt", {
-        req: req.body,
-        res: res.body,
-      });
+      axiom.ingest(process.env.AXIOM_DATASET || "gpt", [
+        {
+          req: req.body,
+          res: res.body,
+        },
+      ]);
+      console.log(`[Axiom] req: ${JSON.stringify(req.body)}, res: ${res.body}`);
       await axiom.flush();
     }
 
