@@ -45,7 +45,10 @@ export async function requestOpenai(req: NextRequest) {
   );
 
   const fetchUrl = `${baseUrl}/${openaiPath}`;
-  const reqJson = await req.json();
+  let reqJson;
+  if (req.method === "POST") {
+    reqJson = await req.json();
+  }
   const fetchOptions: RequestInit = {
     headers: {
       "Content-Type": "application/json",
@@ -56,7 +59,7 @@ export async function requestOpenai(req: NextRequest) {
       }),
     },
     method: req.method,
-    body: JSON.stringify(reqJson),
+    body: req.method === "POST" ? JSON.stringify(reqJson) : req.body,
     // to fix #2485: https://stackoverflow.com/questions/55920957/cloudflare-worker-typeerror-one-time-use-body
     redirect: "manual",
     // @ts-ignore
@@ -98,7 +101,11 @@ export async function requestOpenai(req: NextRequest) {
     newHeaders.set("X-Accel-Buffering", "no");
 
     // log
-    if (process.env.AXIOM_TOKEN && process.env.AXIOM_ORG_ID) {
+    if (
+      process.env.AXIOM_TOKEN &&
+      process.env.AXIOM_ORG_ID &&
+      req.method === "POST"
+    ) {
       axiom.ingest(process.env.AXIOM_DATASET || "gpt", [reqJson]);
       await axiom.flush();
     }
