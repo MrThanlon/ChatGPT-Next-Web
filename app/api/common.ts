@@ -45,7 +45,7 @@ export async function requestOpenai(req: NextRequest) {
   );
 
   const fetchUrl = `${baseUrl}/${openaiPath}`;
-  let reqJson;
+  let reqJson: any;
   if (req.method === "POST") {
     reqJson = await req.json();
   }
@@ -106,15 +106,62 @@ export async function requestOpenai(req: NextRequest) {
       process.env.AXIOM_ORG_ID &&
       req.method === "POST"
     ) {
-      axiom.ingest(process.env.AXIOM_DATASET || "gpt", [reqJson]);
-      await axiom.flush();
+      if (!res.body) {
+        return new Response(res.body, {
+          status: res.status,
+          statusText: res.statusText,
+          headers: newHeaders,
+        });
+      }
+      const rets = res.body.tee();
+      // axiom.ingestRaw(process.env.AXIOM_DATASET || "gpt", statis[0])
+      axiom.flush();
+      // statistics
+      const reader = rets[1].getReader();
+      let tokens = reqJson.messages.reduce(
+        (pre: number, cur: any) => pre + cur.content.length,
+        0,
+      );
+      const decoder = new TextDecoder("utf-8");
+      let response = "";
+      reader.read().then(function handler({ value, done }) {
+        const text = decoder.decode(value);
+        text.split("\n\n").forEach((val) => {
+          try {
+            const data = JSON.parse(val.substring(6));
+            const content = data.choices?.at(0)?.delta?.content;
+            if (content) {
+              response += content;
+              tokens += content.length;
+            }
+          } catch (e) {}
+        });
+        if (done) {
+          axiom.ingest(process.env.AXIOM_DATASET || "gpt", [
+            {
+              key: req.headers.get("Authorization")?.substring(7),
+              tokens,
+              ...reqJson,
+              response,
+            },
+          ]);
+          axiom.flush();
+          return;
+        }
+        reader.read().then(handler);
+      });
+      return new Response(rets[0], {
+        status: res.status,
+        statusText: res.statusText,
+        headers: newHeaders,
+      });
+    } else {
+      return new Response(res.body, {
+        status: res.status,
+        statusText: res.statusText,
+        headers: newHeaders,
+      });
     }
-
-    return new Response(res.body, {
-      status: res.status,
-      statusText: res.statusText,
-      headers: newHeaders,
-    });
   } finally {
     clearTimeout(timeoutId);
   }
